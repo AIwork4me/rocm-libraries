@@ -194,6 +194,7 @@ from kernels.common.attention_dense_decode import (
     NONPERSIST_DECODES,
     PERSIST_DECODES,
     DecodeShape,
+    PersistBtHkvMinor,
     PersistHkvMajor,
     PersistQbMajor,
 )
@@ -462,6 +463,7 @@ class Gfx942AttentionDenseSpec(AttentionDenseSpec):
                 "auto",
                 PersistQbMajor.name,
                 PersistHkvMajor.name,
+                PersistBtHkvMinor.name,
             }
         )
 
