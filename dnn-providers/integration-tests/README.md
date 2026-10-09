@@ -333,6 +333,66 @@ run by hand behave alike; pass `--enforce-support-claims=false` to keep the summ
 but let a broken claim stay green. See
 [`docs/support-claim-enforcement.md`](docs/support-claim-enforcement.md).
 
+## Support Claims and the Support Matrix
+
+A bundle can carry a **support claim**: a sidecar asserting that a named engine
+supports that exact graph on a given `(arch, platform)`. Claims live beside the
+graph — `{Name}.support.json` for a single-graph bundle, one `support.json`
+keyed per `cases[].id` for a sweep — and the integration tests enforce them, so
+a claim that stops holding fails a test. The spec is
+[RFC 0015](../../projects/hipdnn/docs/rfcs/0015_EngineSupportClaims.md).
+
+Two scripts read them, and neither needs a GPU, a plugin, or a DVC pull — the
+`.json` and `.support.json` files are all in git:
+
+```bash
+# Validate every sidecar: schema, enforcement level, orphans, unknown case ids.
+# Also runs as the verify-support-claims pre-commit hook.
+python3 dnn-providers/integration-tests/scripts/verify_support_claims.py
+
+# Render the human-readable matrix of who supports what, where. With no
+# arguments this writes dnn-providers/integration-tests/SUPPORT_MATRIX.md.
+python3 dnn-providers/integration-tests/scripts/render_support_matrix.py
+```
+
+### Rendering the support matrix
+
+`SUPPORT_MATRIX.md` is **generated, not committed** — it is large and grows
+with every bundle and every gfx target, which would mean a large diff on every
+sidecar edit and a file near the size at which GitHub stops rendering markdown.
+Run the command above to produce your own copy; it is git-ignored, so it will
+not show up in `git status`. The matrix is a pure view of the sidecars, so two
+people rendering the same checkout get byte-identical files.
+
+`SUPPORT_MATRIX_OVERVIEW.md` **is committed** — it is the compact
+overview-only variant produced by `--overview-only`, small enough to render on
+GitHub. A pre-commit hook (`check-support-matrix-overview`) fails if it is
+stale; regenerate it with `--overview-only` in the same commit as the sidecar
+change.
+
+Useful flags:
+
+| Flag | Effect |
+|------|--------|
+| `--output PATH` | write somewhere other than the default path; `-` means stdout |
+| `--format json` | the flat per-graph index instead of the document — read this, not the rendered tables, if you are building tooling on top |
+| `--bundles-dir PATH` | render a tree other than `integration-test-bundles/` |
+| `--max-case-ids N` | inline up to N sweep case ids per bundle in the provenance comments (0 = none, the default) |
+| `--overview-only` | emit only the per-target overview tables — no collapsible details, no per-variant drilldowns; writes to `SUPPORT_MATRIX_OVERVIEW.md` by default |
+| `--check` | compare against an existing file and exit 1 if they differ; for keeping a local copy in sync |
+
+Nothing is filtered: every `(arch, platform)` target gets its own section, and
+within it every engine is a column and every op family is a row, whether or not
+anything claims them. A family that vanished when unclaimed would be
+indistinguishable from one nobody has looked at.
+
+Reading it: each overview row is one op family, and the disclosure triangles
+expand it into per-variant and then per-(variant, dtype) rows. A `—` means the
+graph is **unclaimed**, which is not the same as *known unsupported* — the
+engine may reject it, or nobody has written the claim yet. The legend at the
+top of the generated document spells out the rest, including the `[multi_batch]`
+/ `[grouped]` / `[stride]` / `[dilation]` / `[padding]` variant tags.
+
 ## Test Tiers
 
 Tiers bound how long a run takes. They apply to both the C++ reference-executor
@@ -764,6 +824,9 @@ for the full workflow and tooling reference.
 - [`docs/support-claim-enforcement.md`](docs/support-claim-enforcement.md) —
   `.support.json` sidecars, the verdict set comparison, the `TestBody()`
   enforcement lifecycle, and how to read the claim summary.
+- [RFC 0015 — Per-Graph Engine Support Claims](../../projects/hipdnn/docs/rfcs/0015_EngineSupportClaims.md)
+  — the `.support.json` sidecar schema (§4), enforcement levels, and how the
+  support matrix is generated from them (§11).
 
 ## Project policies
 
